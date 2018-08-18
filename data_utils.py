@@ -2,7 +2,7 @@ import numpy as np
 import collections
 import os
 
-def read_words(conf):
+def read_words1(conf):
     words = []
     path = conf.data_dir
     #print(path)
@@ -15,6 +15,18 @@ def read_words(conf):
             #Add a start '<s>' and an end '<s>'
             if len(tokens) == conf.context_size-2:
                 words.extend((['<pad>']*int(conf.filter_h/2)) + ['<s>'] + tokens + ['</s>'])
+    return words
+
+def read_words(conf):
+    words = []
+    for file in os.listdir(conf.data_dir):
+        with open(os.path.join(conf.data_dir, file), 'r') as f:
+            for line in f.readlines():
+                tokens = line.split()
+                # NOTE Currently, only sentences with a fixed size are chosen
+                # to account for fixed convolutional layer size.
+                if len(tokens) == conf.context_size-2:
+                    words.extend((['<pad>']*int(conf.filter_h/2)) + ['<s>'] + tokens + ['</s>'])
     return words
 
 def index_words(words, conf):

@@ -12,9 +12,14 @@ class GatedCNN(object):
         #Create word Embeddings for input sentences
         embed = self.create_embeddings(self.X, conf)
         #Initialize the input of each layer
+        self.internal_states = []
+        
         h, res_input = embed, embed
 
         for i in range(conf.num_layers):
+            #Record internal states
+            self.internal_states.append(h)
+            
             #Get the last dimension, channels of last layer
             fanin_depth = h.get_shape()[-1]
             #filter size, note the size in the last layer is 1
@@ -38,7 +43,9 @@ class GatedCNN(object):
                     res_input = h
         #Flatten the output, (batch_size*max_len) * emb_size
         #print(h)
+        self.out_layer = tf.squeeze(h, 3)
         h = tf.reshape(h, (-1, conf.embedding_size))
+        
         #print(h)
         y_shape = self.y.get_shape().as_list()
         #Flatten the label, (batch_size*max_len) * 1
@@ -48,12 +55,22 @@ class GatedCNN(object):
         softmax_w = tf.get_variable("softmax_w", [conf.vocab_size, conf.embedding_size], tf.float32, 
                                     tf.random_normal_initializer(0.0, 0.1))
         softmax_b = tf.get_variable("softmax_b", [conf.vocab_size], tf.float32, tf.constant_initializer(1.0))
+        #softmax_w = tf.get_variable("softmax_w", [conf.embedding_size, conf.vocab_size], tf.float32, 
+                                    #tf.random_normal_initializer(0.0, 0.1))
+        
+        #logits = tf.matmul(h, softmax_w) + softmax_b
+        
+        #output = tf.nn.softmax(tf.matmul(h, softmax_w) + softmax_b)
+        #labels = tf.one_hot(self.y, conf.vocab_size)
+        
+        #self.loss = tf.reduce_sum(tf.nn.softmax_cross_entropy_with_logits(labels=labels, logits=logits))
+        #cross_entropy = -tf.reduce_mean(labels*tf.log(output))
+        #self.loss = cross_entropy
 
         #Preferance: NCE Loss, heirarchial softmax, adaptive softmax
         #Note tf.nn.nce_loss has changed in new versions
         self.loss = tf.reduce_mean(tf.nn.nce_loss(weights=softmax_w, biases=softmax_b, 
                                                   inputs=h, labels=self.y, 
-                                                  partition_strategy="div",
                                                   num_sampled=conf.num_sampled,
                                                   num_classes=conf.vocab_size))
         
@@ -63,6 +80,7 @@ class GatedCNN(object):
         clipped_gradients = [(tf.clip_by_value(_[0], -conf.grad_clip, conf.grad_clip), _[1]) for _ in gradients]
         self.optimizer = trainer.apply_gradients(clipped_gradients)
         self.perplexity = tf.exp(self.loss)
+        #self.optimizer = tf.train.AdamOptimizer(conf.learning_rate).minimize(self.loss)
 
         self.create_summaries()
 
