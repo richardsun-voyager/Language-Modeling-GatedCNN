@@ -2,6 +2,11 @@ import numpy as np
 import collections
 import os
 
+class data_helper:
+    '''
+    Read dataset, tokenize sentences and map words into idx
+    '''
+
 def read_words1(conf):
     words = []
     path = conf.data_dir
