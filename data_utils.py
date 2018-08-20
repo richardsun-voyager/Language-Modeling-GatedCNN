@@ -19,7 +19,7 @@ class data_helper:
                     # NOTE Currently, only sentences with a fixed size are chosen
                     # to account for fixed convolutional layer size.
                     if len(tokens) == conf.context_size-2:
-                        words.extend((['<pad>']*int(conf.filter_h/2)) + ['<s>'] + tokens + ['</s>'])
+                        words.extend(['<s>'] + tokens + ['</s>'])
         return words
     
     def index_words(self, words, conf):

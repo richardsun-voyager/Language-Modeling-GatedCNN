@@ -36,8 +36,10 @@ class generate_samples:
         indice = np.random.choice(len(sents), batch_size)
         sents = sents[indice]
         labels = labels[indice]
+        #sent_vecs, sent_lens = self.create_sent_idx(sents)
         sent_vecs, sent_lens = self.create_sent_idx(sents)
         return sent_vecs, labels, sent_lens
+        #return self.create_sent_idx(sents), labels, sent_lens
     
     
     def create_sent_idx(self, sents):
@@ -45,7 +47,7 @@ class generate_samples:
         Map sents into idx
         '''
         sents_lens = list(map(self.sent2idx, sents))
-        sents_idx, sents_lens = list(zip(*sents_lens)) 
+        sents_idx, sents_lens = zip(*sents_lens)
         return sents_idx, sents_lens
         
         

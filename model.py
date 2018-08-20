@@ -14,60 +14,26 @@ class GatedCNN(object):
         #Initialize the input of each layer
         self.internal_states = []
         
-        h, res_input = embed, embed
+        #h, res_input = embed, embed
         
-        #Initialize kernel size
-        height = conf.filter_h
-        width = conf.filter_w
+        shape = (1, conf.filter_h, conf.filter_w, 1)
+        
+        h = self.glu(embed, shape, conf)
+        
 
-        for i in range(conf.num_layers):
-            #Record internal states
-            self.internal_states.append(h)
-            
-            #Get the last dimension, channels of last layer
-            fanin_depth = h.get_shape()[-1]
-            #filter size, note the size in the last layer is 1
-            filter_size = conf.filter_size if i < conf.num_layers-1 else 1
-            filter_size = conf.filter_size
-            #print(filter_size)
-            #shape of the filter
-            shape = (conf.filter_h, conf.filter_w, fanin_depth, filter_size)
-            
-            with tf.variable_scope("layer_%d"%i):
-                #Linear layer
-                #conv_w = self.conv_op(h, shape, "linear")
-                conv_w = tf.layers.conv2d(h, filter_size,
-                                       kernel_size=(height, width),
-                                       strides=(1, width), padding='same',
-                                        name='linear')
-                #Gate layer
-                #conv_v = self.conv_op(h, shape, "gated")
-                conv_v = tf.layers.conv2d(h, filter_size,
-                                       kernel_size=(height, width),
-                                       strides=(1, width), padding='same',
-                                        name='gate')
-                #Elementwise multiplication
-                #batch_size, max_len, 1, filter_size
-                h = conv_w * tf.sigmoid(conv_v)
-                #print(h)
-                #residual layer, prevent weight diminishing
-                #Note residual block should avoid the last layer
-                if i % conf.block_size == 1:
-                    h += res_input
-                    res_input = h
         #Flatten the output, (batch_size*max_len) * emb_size
         #print(h)
-        #self.out_layer = tf.squeeze(h, 3)
+        self.out_layer = tf.squeeze(h, 1)
         #h = tf.reshape(h, (-1, conf.embedding_size))
-        h = tf.reshape(h, (-1, conf.filter_size))
+        h = tf.reshape(h, (-1, conf.embedding_size))
         
-        #print(h)
+        print(h)
         y_shape = self.y.get_shape().as_list()
         #Flatten the label, (batch_size*max_len) * 1
         self.y = tf.reshape(self.y, (y_shape[0] * y_shape[1], 1))
         #print(self.y)
         #Nce loss for the softmax
-        softmax_w = tf.get_variable("softmax_w", [conf.vocab_size, conf.filter_size], tf.float32, 
+        softmax_w = tf.get_variable("softmax_w", [conf.vocab_size, conf.embedding_size], tf.float32, 
                                     tf.random_normal_initializer(0.0, 0.1))
         softmax_b = tf.get_variable("softmax_b", [conf.vocab_size], tf.float32, tf.constant_initializer(1.0))
         #softmax_w = tf.get_variable("softmax_w", [conf.embedding_size, conf.vocab_size], tf.float32, 
@@ -98,6 +64,44 @@ class GatedCNN(object):
         #self.optimizer = tf.train.AdamOptimizer(conf.learning_rate).minimize(self.loss)
 
         self.create_summaries()
+        
+    def glu(self, embed, shape, conf):
+        #Initialize kernel size
+        height = conf.filter_h
+        width = conf.filter_w
+        h, res_input = embed, embed
+        kernel_width = shape[1]
+        left_pad = kernel_width - 1
+        paddings = [[0,0],[0,0],[left_pad,0],[0,0]]
+        padded_input = tf.pad(h, paddings, "CONSTANT")
+
+        for i in range(conf.num_layers):
+            #Record internal states
+
+            
+            with tf.variable_scope("layer_%d"%i):
+                #Linear layer
+                conv_w = self.conv_op(padded_input, shape, "linear")
+                #conv_w = tf.layers.conv2d(h, filter_size,
+                                       #kernel_size=(height, width),
+                                       #strides=(1, width), padding='same',
+                                        #name='linear')
+                #Gate layer
+                conv_v = self.conv_op(padded_input, shape, "gated")
+                #conv_v = tf.layers.conv2d(h, filter_size,
+                                       #kernel_size=(height, width),
+                                       #strides=(1, width), padding='same',
+                                        #name='gate')
+                #Elementwise multiplication
+                #batch_size, max_len, 1, filter_size
+                h = conv_w * tf.sigmoid(conv_v)
+                #print(h)
+                #residual layer, prevent weight diminishing
+                #Note residual block should avoid the last layer
+                if i % conf.block_size == 1:
+                    h += res_input
+                    res_input = h
+        return h
 
     def create_embeddings(self, X, conf):
         #Create initial embeddings
@@ -117,14 +121,14 @@ class GatedCNN(object):
         #embed_shape = embed.get_shape().as_list()
         #Expand a dimension for convolutional layer
         #embed = tf.reshape(embed, (embed_shape[0], embed_shape[1], embed_shape[2], 1))
-        embed = tf.expand_dims(embed, 3)
+        embed = tf.expand_dims(embed, 1)
         return embed
 
 
     def conv_op(self, fan_in, shape, name):
         W = tf.get_variable("%s_W"%name, shape, tf.float32, tf.random_normal_initializer(0.0, 0.1))
         b = tf.get_variable("%s_b"%name, shape[-1], tf.float32, tf.constant_initializer(1.0))
-        return tf.add(tf.nn.conv2d(fan_in, W, strides=[1,1,1,1], padding='VALID'), b)
+        return tf.add(tf.nn.depthwise_conv2d(fan_in, W, strides=[1,1,1,1], padding='VALID'), b)
     
     def create_summaries(self):
         tf.summary.scalar("loss", self.loss)

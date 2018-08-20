@@ -6,7 +6,7 @@ def prepare_conf(conf):
     conf.filter_w = conf.embedding_size
     #Padding the first k-1 as zeros
     #conf.context_size += int(conf.filter_h/2)
-    conf.text_size += int(conf.filter_h/2)
+    #conf.text_size += int(conf.filter_h/2)
     
     
     # Check if data exists
