@@ -15,6 +15,10 @@ class GatedCNN(object):
         self.internal_states = []
         
         h, res_input = embed, embed
+        
+        #Initialize kernel size
+        height = conf.filter_h
+        width = conf.filter_w
 
         for i in range(conf.num_layers):
             #Record internal states
@@ -24,16 +28,26 @@ class GatedCNN(object):
             fanin_depth = h.get_shape()[-1]
             #filter size, note the size in the last layer is 1
             filter_size = conf.filter_size if i < conf.num_layers-1 else 1
+            filter_size = conf.filter_size
             #print(filter_size)
             #shape of the filter
             shape = (conf.filter_h, conf.filter_w, fanin_depth, filter_size)
             
             with tf.variable_scope("layer_%d"%i):
                 #Linear layer
-                conv_w = self.conv_op(h, shape, "linear")
+                #conv_w = self.conv_op(h, shape, "linear")
+                conv_w = tf.layers.conv2d(h, filter_size,
+                                       kernel_size=(height, width),
+                                       strides=(1, width), padding='same',
+                                        name='linear')
                 #Gate layer
-                conv_v = self.conv_op(h, shape, "gated")
+                #conv_v = self.conv_op(h, shape, "gated")
+                conv_v = tf.layers.conv2d(h, filter_size,
+                                       kernel_size=(height, width),
+                                       strides=(1, width), padding='same',
+                                        name='gate')
                 #Elementwise multiplication
+                #batch_size, max_len, 1, filter_size
                 h = conv_w * tf.sigmoid(conv_v)
                 #print(h)
                 #residual layer, prevent weight diminishing
@@ -43,8 +57,9 @@ class GatedCNN(object):
                     res_input = h
         #Flatten the output, (batch_size*max_len) * emb_size
         #print(h)
-        self.out_layer = tf.squeeze(h, 3)
-        h = tf.reshape(h, (-1, conf.embedding_size))
+        #self.out_layer = tf.squeeze(h, 3)
+        #h = tf.reshape(h, (-1, conf.embedding_size))
+        h = tf.reshape(h, (-1, conf.filter_size))
         
         #print(h)
         y_shape = self.y.get_shape().as_list()
@@ -52,7 +67,7 @@ class GatedCNN(object):
         self.y = tf.reshape(self.y, (y_shape[0] * y_shape[1], 1))
         #print(self.y)
         #Nce loss for the softmax
-        softmax_w = tf.get_variable("softmax_w", [conf.vocab_size, conf.embedding_size], tf.float32, 
+        softmax_w = tf.get_variable("softmax_w", [conf.vocab_size, conf.filter_size], tf.float32, 
                                     tf.random_normal_initializer(0.0, 0.1))
         softmax_b = tf.get_variable("softmax_b", [conf.vocab_size], tf.float32, tf.constant_initializer(1.0))
         #softmax_w = tf.get_variable("softmax_w", [conf.embedding_size, conf.vocab_size], tf.float32, 
@@ -109,7 +124,7 @@ class GatedCNN(object):
     def conv_op(self, fan_in, shape, name):
         W = tf.get_variable("%s_W"%name, shape, tf.float32, tf.random_normal_initializer(0.0, 0.1))
         b = tf.get_variable("%s_b"%name, shape[-1], tf.float32, tf.constant_initializer(1.0))
-        return tf.add(tf.nn.conv2d(fan_in, W, strides=[1,1,1,1], padding='SAME'), b)
+        return tf.add(tf.nn.conv2d(fan_in, W, strides=[1,1,1,1], padding='VALID'), b)
     
     def create_summaries(self):
         tf.summary.scalar("loss", self.loss)
