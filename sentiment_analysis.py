@@ -103,26 +103,26 @@ class CNN_Model_Pretrained_Emb:
     
                 pooled = tf.nn.max_pool(
                     h,
-                    ksize=[1, filter_size, 
+                    ksize=[1, self.max_doc_len-filter_size+1, 
                            1, 1],
                     strides=[1, 1, 1, 1],
                     padding='VALID',
                     name="pool")
                 #Swap the last two dimensions
-                pooled = tf.transpose(pooled, [0, 1, 3, 2])
+                #pooled = tf.transpose(pooled, [0, 1, 3, 2])
                 #Second conv layer
-                h = tf.layers.conv2d(pooled, num_filters,
-                                       kernel_size=(filter_size, num_filters),
-                                       strides=(1, 1), padding='valid',
-                                        activation=tf.nn.relu)
+                #h = tf.layers.conv2d(pooled, num_filters,
+                                       #kernel_size=(filter_size, num_filters),
+                                       #strides=(1, 1), padding='valid',
+                                        #activation=tf.nn.relu)
     
-                pooled = tf.nn.max_pool(
-                    h,
-                    ksize=[1, self.max_doc_len - 3*filter_size + 3, 
-                           1, 1],
-                    strides=[1, 1, 1, 1],
-                    padding='VALID',
-                    name="pool")
+                #pooled = tf.nn.max_pool(
+                    #h,
+                    #ksize=[1, self.max_doc_len - 3*filter_size + 3, 
+                           #1, 1],
+                    #strides=[1, 1, 1, 1],
+                    #padding='VALID',
+                    #name="pool")
                 pooled_outputs.append(pooled)
             #self.weights.append(W)
             

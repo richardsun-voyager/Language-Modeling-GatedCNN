@@ -6,9 +6,9 @@ class GatedCNN(object):
     def __init__(self, conf):
         tf.reset_default_graph()
         #Input sentence, batch_size * word_num    
-        self.X = tf.placeholder(shape=[conf.batch_size, conf.text_size], dtype=tf.int32, name="X")
+        self.X = tf.placeholder(shape=[None, conf.text_size], dtype=tf.int32, name="X")
         #Label words
-        self.y = tf.placeholder(shape=[conf.batch_size, conf.text_size], dtype=tf.int32, name="y")
+        self.y = tf.placeholder(shape=[None, conf.text_size], dtype=tf.int32, name="y")
         #Create word Embeddings for input sentences
         embed = self.create_embeddings(self.X, conf)
         #Initialize the input of each layer
@@ -38,7 +38,7 @@ class GatedCNN(object):
         #print(h)
         y_shape = self.y.get_shape().as_list()
         #Flatten the label, (batch_size*max_len) * 1
-        self.y = tf.reshape(self.y, (y_shape[0] * y_shape[1], 1))
+        self.y = tf.reshape(self.y, (-1, 1))
         #print(self.y)
         #Nce loss for the softmax
         softmax_w = tf.get_variable("softmax_w", [conf.vocab_size, conf.embedding_size], tf.float32, 
@@ -109,13 +109,13 @@ class GatedCNN(object):
         embed = tf.nn.embedding_lookup(embeddings, X)
         #The original sentence was padding with k-1 zero in the beginning
         #So the first k-1
-        mask_layer = np.ones((conf.batch_size, conf.text_size, conf.embedding_size))
+        #mask_layer = np.ones((conf.batch_size, conf.text_size, conf.embedding_size))
         #In the original paper, the first k-1 word will be padded
         #In a convolutional network, the kernel size is k, if we choose padding mode as 'SAME'
         #That means k/2 will be padded
         #mask_size = int(conf.filter_h/2)
         #mask_layer[:,0:mask_size,:] = 0
-        embed *= mask_layer
+        #embed *= mask_layer
         
         #embed_shape = embed.get_shape().as_list()
         #Expand a dimension for convolutional layer
