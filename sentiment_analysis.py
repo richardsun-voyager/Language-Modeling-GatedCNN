@@ -68,7 +68,7 @@ class CNN_Model_Pretrained_Emb:
             cost = self.cost
         #with tf.name_scope('Optimizer'):
             #self._learning_rate = tf.Variable(0.0, trainable=False)
-            train_op = tf.train.AdamOptimizer(0.0001).minimize(cost)
+            train_op = tf.train.AdamOptimizer(0.00005).minimize(cost)
             #train_op = tf.train.AdamOptimizer(self._learning_rate).minimize(cost)
             #tvars = tf.trainable_variables()
             #grads, _ = tf.clip_by_global_norm(tf.gradients(cost, tvars), 6)

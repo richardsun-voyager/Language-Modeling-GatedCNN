@@ -22,6 +22,19 @@ class data_helper:
                         words.extend(['<s>'] + tokens + ['</s>'])
         return words
     
+    def read_sents(self, conf):
+        '''Read 1 billion sents'''
+        sents = []
+        for file in os.listdir(conf.data_dir):
+            with open(os.path.join(conf.data_dir, file), 'r') as f:
+                for line in f.readlines():
+                    tokens = line
+                    # NOTE Currently, only sentences with a fixed size are chosen
+                    # to account for fixed convolutional layer size.
+                    if len(tokens) == conf.context_size-2:
+                        sents.append(['<s>'] + tokens + ['</s>'])
+        return sents
+    
     def index_words(self, words, conf):
         word_counter = collections.Counter(words).most_common(conf.vocab_size-1)
         word_to_idx = {'<unk>': 0}
