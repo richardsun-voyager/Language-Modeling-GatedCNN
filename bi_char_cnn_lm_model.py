@@ -40,7 +40,7 @@ class gated_char_cnn_model:
         #For the reverse part
         if hidden_layers_reverse:
             self.hidden_layer_reverse = hidden_layers_reverse[-1]
-            hidden_layers_reverse = tf.stack(hidden_layers, axis=3)
+            hidden_layers_reverse = tf.stack(hidden_layers_reverse, axis=3)
             self.hidden_layers_reverse = tf.reduce_mean(hidden_layers_reverse, 3)
         
         #Get the loss
@@ -86,7 +86,7 @@ class gated_char_cnn_model:
                                 kernel_regularizer=regularizer, name='conv'+name)
         return conv
     
-    def build_graph2(self, inputs):
+    def build_graph(self, inputs):
         '''
         This graph refers to dauphin's graph
         '''
@@ -123,11 +123,11 @@ class gated_char_cnn_model:
                 else:
                     res = None
                 #Gated cnn unit    
-                x = self.glu2(x, params[0], params[1], i, res) 
+                x = self.glu(x, params[0], params[1], i, res) 
                 hidden_layers.append(x) 
         return hidden_layers
     
-    def glu2(self, layer_input, num_filters, kernel_width, layer_name, residual=None):
+    def glu(self, layer_input, num_filters, kernel_width, layer_name, residual=None):
         """ 
         Gated Linear Unit
         Args:
@@ -156,57 +156,49 @@ class gated_char_cnn_model:
 
         return h
 
+    def build_pipeline(self, X, name):
+        '''
+        Build a pipeline to compute output embeddings for each word
+        Args: 
+        X: input word sequence
+        name: scope name
+        '''
+        vocab_size = self.conf.vocab_size
+        embedding_size = self.conf.embedding_size
+        with tf.variable_scope('layer_'+name):
+            if not self.is_char_input:
+                with tf.variable_scope('embedding'):
+                    init = tf.random_normal([vocab_size, embedding_size], stddev=.02, dtype=tf.float32)
+                    self.word_embeddings = tf.get_variable(name='word_embedding',
+                                                       initializer=init)
+                    input_embeddings = tf.nn.embedding_lookup(self.word_embeddings, X)
+                    #Position embedding
+                    pos_emb = positional_encoding(self.X.get_shape().as_list(), embedding_size)
+                    input_embeddings += pos_emb
+            else:
+                with tf.variable_scope('char_embedding'):
+                    input_embeddings = self._build_word_char_embeddings(X)
+                    pos_emb = positional_encoding(self.X.get_shape().as_list()[:2], embedding_size)
+                    #Position embedding
+                    input_embeddings += pos_emb
+                
+            hidden_layers = self.build_graph(input_embeddings) 
+        return hidden_layers
         
+    
     @lazy_property
     def build_model(self):
         """ Setup the model after we have imported the data and know the vocabulary size """
 
-        vocab_size = self.conf.vocab_size
-        embedding_size = self.conf.embedding_size
-        
-        if not self.is_char_input:
-        #Embddings
-            with tf.variable_scope('embedding'):
-                init = tf.random_normal([vocab_size, embedding_size], stddev=.02, dtype=tf.float32)
-                self.word_embeddings = tf.get_variable(name='word_embedding',
-                                                   initializer=init)
-                input_embeddings = tf.nn.embedding_lookup(self.word_embeddings, self.X)
-                #Position embedding
-                pos_emb = positional_encoding(self.X.get_shape().as_list(), embedding_size)
-                input_embeddings += pos_emb
-        else:
-            with tf.variable_scope('char_embedding'):
-                input_embeddings = self._build_word_char_embeddings(self.X)
-                pos_emb = positional_encoding(self.X.get_shape().as_list()[:2], embedding_size)
-                #Position embedding
-                input_embeddings += pos_emb
-                
-            
-        #Dropout   
-        #if self.is_train:
-            #input_embeddings = tf.nn.dropout(input_embeddings, 0.8)
-            
-        #Note for the convolutional layer, we need expand the dimension to 4
-        #input_embeddings_expanded = tf.expand_dims(input_embeddings, 1)
-        with tf.variable_scope('forward_layer'):
-            hidden_layers = self.build_graph2(input_embeddings)
-            
-        #Make it bidirectional, just like that in biLSTM
+        hidden_layers = self.build_pipeline(self.X, 'forward')
+        hidden_layers_reverses = None
         if self.is_bidirectional:
-            input_embeddings_reverse = tf.nn.embedding_lookup(self.word_embeddings, 
-                                                              self.X_reverse)
-            #input_embeddings_expanded_reverse = tf.expand_dims(input_embeddings_reverse, 1)
-            with tf.variable_scope('backward_layer'):
-                hidden_layers_reverses = self.build_graph2(input_embeddings_reverse)
-                return hidden_layers, hidden_layers_reverses
+            hidden_layers_reverses = self.build_pipeline(self.X_reverse, 'backward')
             
         #If only forward network
-        return hidden_layers, None
+        return hidden_layers, hidden_layers_reverses
     
 
-    
-
-        
     @lazy_property    
     def build_loss(self):
         # Output embeddings
